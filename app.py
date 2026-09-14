@@ -10,7 +10,7 @@ import os
 
 st.set_page_config(
     page_title="Financial NLP Alpha Terminal",
-    page_icon="📊",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -75,11 +75,11 @@ with tab1:
         st.subheader(f"Call Details: {selected_ticker} ({selected_date[:12]})")
         div_val = row['divergence']
         if div_val > 0.05:
-            st.error(f"🚨 **High Tone Divergence (+{div_val:.2f})**: Executives were significantly more optimistic than Analysts (Overconfidence Warning).")
+            st.error(f"⚠️ **High Tone Divergence (+{div_val:.2f})**: Executives were significantly more optimistic than Analysts (Overconfidence Warning).")
         elif div_val < -0.05:
             st.success(f"🟢 **Negative Divergence ({div_val:.2f})**: Analysts were more bullish than conservative executive guidance.")
         else:
-            st.info(f"⚪ **Aligned Sentiment ({div_val:.2f})**: Executive and Analyst sentiments are closely aligned.")
+            st.info(f"ℹ️ **Aligned Sentiment ({div_val:.2f})**: Executive and Analyst sentiments are closely aligned.")
             
         fig_bar = go.Figure(data=[
             go.Bar(name="NSI Executive", x=["Executive (Remarks)"], y=[row['nsi_exec']], marker_color='#3B82F6', text=[f"{row['nsi_exec']:+.2f}"], textposition='auto'),
@@ -105,7 +105,7 @@ with tab1:
 
 with tab2:
     st.subheader("Econometric Regression (Continuous Alpha Prediction)")
-    st.markdown('''**Model Formula:** $\\text{CAR}_{5D} = \\alpha + \\beta_1 \\cdot \\text{NSI}_{\\text{QA}} + \\beta_2 \\cdot \\text{Divergence} + \\epsilon$''')
+    st.markdown(r'''**Model Formula:** $\text{CAR}_{5D} = \alpha + \beta_1 \cdot \text{NSI}_{\text{QA}} + \beta_2 \cdot \text{Divergence} + \epsilon$''')
     X = df[['nsi_qa', 'divergence']]
     X = sm.add_constant(X)
     y = df['car_5d']
@@ -117,16 +117,21 @@ with tab2:
         st.plotly_chart(fig_scatter, use_container_width=True)
     with reg_col2:
         st.write("**Regression Diagnostics:**")
-        summary_df = pd.DataFrame({"Variable": ["Constant", "NSI_QA (Analyst Sentiment)", "Divergence (Overconfidence)"], "Coefficient": [model.params[0], model.params[1], model.params[2]], "t-statistic": [model.tvalues[0], model.tvalues[1], model.tvalues[2]], "p-value": [model.pvalues[0], model.pvalues[1], model.pvalues[2]]})
+        summary_df = pd.DataFrame({
+            "Variable": ["Constant", "NSI_QA (Analyst Sentiment)", "Divergence (Overconfidence)"],
+            "Coefficient": [model.params.iloc[0], model.params.iloc[1], model.params.iloc[2]],
+            "t-statistic": [model.tvalues.iloc[0], model.tvalues.iloc[1], model.tvalues.iloc[2]],
+            "p-value": [model.pvalues.iloc[0], model.pvalues.iloc[1], model.pvalues.iloc[2]]
+        })
         st.dataframe(summary_df.style.format({"Coefficient": "{:+.4f}", "t-statistic": "{:.2f}", "p-value": "{:.4f}"}), hide_index=True)
         st.metric("R-Squared", f"{model.rsquared:.1%}")
 
 with tab3:
     st.subheader("🎯 Directional Alpha Classification: Precision, Recall & F1-Score")
-    st.markdown('''
+    st.markdown(r'''
     Jab hum quant finance me **Exact Return %** ke bajaye **Trading Buy/Sell Signal** predict karte hain:
-    - **Class 1 (Outperform / BUY Signal)**: Jab $\\text{CAR}_{5D} > 0$ (Stock S&P 500 benchmark ko beat kare)
-    - **Class 0 (Underperform / SELL Signal)**: Jab $\\text{CAR}_{5D} \\le 0$ (Stock S&P 500 se peeche rahe)
+    - **Class 1 (Outperform / BUY Signal)**: Jab $\text{CAR}_{5D} > 0$ (Stock S&P 500 benchmark ko beat kare)
+    - **Class 0 (Underperform / SELL Signal)**: Jab $\text{CAR}_{5D} \le 0$ (Stock S&P 500 se peeche rahe)
     ''')
     
     df['target'] = (df['car_5d'] > 0).astype(int)
@@ -144,13 +149,13 @@ with tab3:
     
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("🎯 Precision (Win Rate)", f"{prec:.1%}", help="Jab model ne BUY bola, toh kitne % trades profitable nikle?")
-    m2.metric("🔍 Recall (Opportunity Rate)", f"{rec:.1%}", help="Market ke winning stocks me se kitne % model ne pakde?")
+    m2.metric("📡 Recall (Opportunity Rate)", f"{rec:.1%}", help="Market ke winning stocks me se kitne % model ne pakde?")
     m3.metric("⚖️ F1-Score", f"{f1:.3f}", help="Harmonic Mean of Precision and Recall.")
     m4.metric("📊 Accuracy", f"{acc:.1%}", help="Overall correct directional predictions.")
     
     cl_col1, cl_col2 = st.columns([1, 1])
     with cl_col1:
-        st.write("#### 🧩 Confusion Matrix")
+        st.write("#### 📊 Confusion Matrix")
         cm = confusion_matrix(y_clf, y_pred)
         fig_cm = px.imshow(
             cm, 
