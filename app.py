@@ -6,12 +6,13 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 from sklearn.metrics import classification_report, confusion_matrix, precision_score, recall_score, f1_score
 import json
 import os
 
 st.set_page_config(
-    page_title="Institutional Quant NLP Alpha Terminal | Research Edition",
+    page_title="Institutional Quant NLP Alpha Terminal | Sector-Neutral Edition",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -36,7 +37,7 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 csv_path = os.path.join(base_dir, "quant_alpha_dataset.csv")
 
 if not os.path.exists(csv_path):
-    st.error(f"Dataset not found at {csv_path}. Please make sure quant_alpha_dataset.csv is in the repository folder!")
+    st.error(f"Dataset not found at {csv_path}. Please ensure quant_alpha_dataset.csv is in the project folder!")
     st.stop()
 
 df = pd.read_csv(csv_path)
@@ -44,8 +45,8 @@ df['date'] = pd.to_datetime(df['date'])
 df = df.sort_values(by='date').reset_index(drop=True)
 
 # Main Header
-st.markdown('<div class="main-header">🏛️ Institutional Quant NLP Sentiment & Alpha Terminal</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Executive Tone Divergence, Linguistic Uncertainty, Multi-Horizon CAR & Out-of-Sample Backtesting Engine</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">🏛️ Institutional Quant NLP Sentiment & Sector-Neutral Alpha Terminal</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Tone Divergence, Linguistic Hedging Spread, Sector-Neutral CAR & Net-of-Fee Walk-Forward Backtesting Engine</div>', unsafe_allow_html=True)
 
 # Top KPI Summary Bar
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -57,9 +58,9 @@ with col3:
     overconf_rate = (df['divergence'] > 0.05).mean()
     st.markdown(f'<div class="metric-card"><div class="metric-title">Overconfidence Rate</div><div class="metric-value">{overconf_rate:.1%}</div></div>', unsafe_allow_html=True)
 with col4:
-    avg_car = df['car_5d'].mean()
-    color = "#10B981" if avg_car >= 0 else "#EF4444"
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Mean 5D CAR vs S&P</div><div class="metric-value" style="color: {color};">{avg_car:+.2%}</div></div>', unsafe_allow_html=True)
+    avg_sec_car = df.get('sector_car_5d', df['car_5d']).mean()
+    color = "#10B981" if avg_sec_car >= 0 else "#EF4444"
+    st.markdown(f'<div class="metric-card"><div class="metric-title">Mean 5D Sector Alpha</div><div class="metric-value" style="color: {color};">{avg_sec_car:+.2%}</div></div>', unsafe_allow_html=True)
 with col5:
     outperform_rate = (df['car_5d'] > 0).mean()
     st.markdown(f'<div class="metric-card"><div class="metric-title">Buy Signal Rate</div><div class="metric-value">{outperform_rate:.1%}</div></div>', unsafe_allow_html=True)
@@ -79,20 +80,24 @@ row = ticker_df[ticker_df['date_raw'] == selected_date_raw].iloc[0] if 'date_raw
 
 # Application Tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🎯 Call Analysis & Linguistic Tone",
-    "📊 Quant EDA & Regime Distributions",
+    "🎯 Call Analysis & Sector Alpha",
+    "📊 Quant EDA & Sector Heatmaps",
     "📈 Econometric Regression Engine",
-    "🏆 Out-of-Sample Backtest & Equity Curve",
+    "🏆 Net-of-Fee ML Backtest & 5-Fold CV",
     "🧪 Live FinBERT Sandbox"
 ])
 
 # ==========================================
-# TAB 1: Call Tone & Multi-Horizon CAR
+# TAB 1: Call Tone & Sector-Neutral CAR
 # ==========================================
 with tab1:
     c1, c2 = st.columns([1, 1.2])
     with c1:
-        st.subheader(f"Call Details: {selected_ticker} ({str(selected_date_raw)[:12]})")
+        sector_name = row.get('sector', 'Technology')
+        sector_etf = row.get('sector_etf', 'XLK')
+        st.subheader(f"Call Details: {selected_ticker} ({selected_date_raw})")
+        st.caption(f"**Sector:** `{sector_name}` | **Benchmark ETF:** `{sector_etf}` vs `^GSPC`")
+        
         div_val = row['divergence']
         if div_val > 0.05:
             st.error(f"⚠️ **High Tone Divergence (+{div_val:.2f})**: Executives were significantly more optimistic than Analysts (Overconfidence Warning).")
@@ -106,24 +111,26 @@ with tab1:
             go.Bar(name="NSI Q&A", x=["Analyst Q&A"], y=[row['nsi_qa']], marker_color='#10B981', text=[f"{row['nsi_qa']:+.2f}"], textposition='auto'),
             go.Bar(name="Tone Divergence", x=["Divergence (Exec - QA)"], y=[row['divergence']], marker_color='#F59E0B' if div_val >= 0 else '#8B5CF6', text=[f"{row['divergence']:+.2f}"], textposition='auto')
         ])
-        fig_bar.update_layout(title="Linguistic Polarity Breakdown (Net Sentiment Index)", yaxis_title="NSI [-0.40 to +0.40]", yaxis_range=[-0.45, 0.45], template="plotly_dark", height=320, showlegend=False)
+        fig_bar.update_layout(title="Linguistic Polarity Breakdown (Net Sentiment Index)", yaxis_title="NSI Score", yaxis_range=[-0.45, 0.45], template="plotly_dark", height=300, showlegend=False)
         st.plotly_chart(fig_bar, use_container_width=True)
         
-        # Linguistic Uncertainty Metrics
+        # Linguistic Uncertainty & Hedging Spread
         st.markdown("##### 🔬 Linguistic Feature Diagnostics")
-        l1, l2, l3 = st.columns(3)
-        l1.metric("Hedging / Uncertainty", f"{row.get('exec_hedge_pct', 0.0):.2f}%", help="Frequency of 'may', 'could', 'might'")
-        l2.metric("Certainty Tone", f"{row.get('exec_cert_pct', 0.0):.2f}%", help="Frequency of 'will', 'definitely', 'confident'")
-        l3.metric("Forward Guidance", f"{row.get('exec_fwd_pct', 0.0):.2f}%", help="Frequency of 'expect', 'anticipate', 'target'")
+        l1, l2, l3, l4 = st.columns(4)
+        l1.metric("Exec Hedging", f"{row.get('exec_hedge_pct', 0.0):.2f}%")
+        l2.metric("Q&A Hedging", f"{row.get('qa_hedge_pct', 0.0):.2f}%")
+        h_div = row.get('hedge_divergence', row.get('exec_hedge_pct', 0) - row.get('qa_hedge_pct', 0))
+        l3.metric("Hedging Spread", f"{h_div:+.2f}%", help="Exec Hedging minus Q&A Hedging")
+        l4.metric("Forward Guidance", f"{row.get('exec_fwd_pct', 0.0):.2f}%")
 
     with c2:
-        st.subheader("Real Market Reaction (Multi-Horizon CAR vs S&P 500)")
-        car1 = row.get('car_1d', row['car_5d'] * 0.3)
+        st.subheader("Market & Sector-Neutral Abnormal Returns (CAR)")
         car5 = row['car_5d']
+        sec_car5 = row.get('sector_car_5d', car5)
         
         m_c1, m_c2 = st.columns(2)
-        m_c1.metric("T+1 Post-Call CAR", f"{car1:+.2%}", delta=f"{car1:+.2%}")
-        m_c2.metric("T+5 Cumulative CAR", f"{car5:+.2%}", delta=f"{car5:+.2%}")
+        m_c1.metric("5D CAR vs S&P 500 (^GSPC)", f"{car5:+.2%}", delta=f"{car5:+.2%}")
+        m_c2.metric(f"5D Sector Alpha vs {sector_etf}", f"{sec_car5:+.2%}", delta=f"{sec_car5:+.2%}")
         
         try:
             car_path = json.loads(row['car_trajectory']) if isinstance(row['car_trajectory'], str) else [car5/5.0 * (i+1) for i in range(5)]
@@ -142,7 +149,7 @@ with tab1:
         ))
         fig_car.add_hline(y=0, line_dash="dash", line_color="gray")
         fig_car.update_layout(
-            title=f"{selected_ticker} Post-Earnings Alpha Trajectory (Benchmark: ^GSPC)",
+            title=f"{selected_ticker} Post-Earnings 5-Day Alpha Trajectory",
             xaxis_title="Trading Days After Earnings Call",
             yaxis_title="Cumulative Abnormal Return",
             template="plotly_dark", height=320
@@ -150,34 +157,35 @@ with tab1:
         st.plotly_chart(fig_car, use_container_width=True)
 
 # ==========================================
-# TAB 2: Quant EDA & Regime Distributions
+# TAB 2: Quant EDA & Sector Heatmaps
 # ==========================================
 with tab2:
-    st.subheader("📊 Quant Feature Distributions & Regime Analysis (313 Clean Calls)")
+    st.subheader("📊 Sector-Level Breakdown & Feature Distributions (316 Calls)")
+    
+    sec_summary = df.groupby('sector').agg(
+        Calls=('ticker', 'count'),
+        Avg_Divergence=('divergence', 'mean'),
+        Avg_Sector_CAR=('sector_car_5d', 'mean'),
+        Avg_Market_CAR=('car_5d', 'mean')
+    ).reset_index()
     
     eda_c1, eda_c2 = st.columns(2)
     with eda_c1:
-        st.markdown("#### Tone Divergence Distribution (Overconfidence Spread)")
-        fig_hist = px.histogram(df, x="divergence", nbins=30, color_discrete_sequence=["#38BDF8"], template="plotly_dark", labels={"divergence": "Tone Divergence (Exec - QA)"})
-        fig_hist.add_vline(x=0.05, line_dash="dash", line_color="#EF4444", annotation_text="Overconfidence Threshold (+0.05)")
-        fig_hist.add_vline(x=0.00, line_color="#94A3B8")
-        st.plotly_chart(fig_hist, use_container_width=True)
+        st.markdown("#### Sector-Level Tone Divergence vs Sector Alpha")
+        fig_sec = px.bar(sec_summary, x="sector", y="Avg_Sector_CAR", color="Avg_Sector_CAR", text_auto=".2%", color_continuous_scale=["#EF4444", "#10B981"], template="plotly_dark")
+        fig_sec.update_layout(height=340, xaxis_title="Sector", yaxis_title="Mean 5D Sector Alpha", showlegend=False)
+        st.plotly_chart(fig_sec, use_container_width=True)
         
     with eda_c2:
-        st.markdown("#### Overconfidence Regime vs Post-Earnings CAR Drift")
-        reg_over = df[df['divergence'] > 0.05]['car_5d'].mean()
-        reg_align = df[df['divergence'] <= 0.05]['car_5d'].mean()
-        regime_df = pd.DataFrame({
-            "Regime": ["Overconfident (Divergence > +0.05)", "Aligned / Conservative (Divergence <= +0.05)"],
-            "Mean 5D CAR": [reg_over, reg_align],
-            "Count": [len(df[df['divergence'] > 0.05]), len(df[df['divergence'] <= 0.05])]
-        })
-        fig_regime = px.bar(regime_df, x="Regime", y="Mean 5D CAR", text_auto=".2%", color="Mean 5D CAR", color_continuous_scale=["#EF4444", "#10B981"], template="plotly_dark")
-        fig_regime.update_layout(height=340, showlegend=False)
-        st.plotly_chart(fig_regime, use_container_width=True)
+        st.markdown("#### Tone Divergence Distribution (316 Transcripts)")
+        fig_hist = px.histogram(df, x="divergence", nbins=30, color_discrete_sequence=["#38BDF8"], template="plotly_dark", labels={"divergence": "Tone Divergence (Exec - QA)"})
+        fig_hist.add_vline(x=0.05, line_dash="dash", line_color="#EF4444", annotation_text="Overconfidence (+0.05)")
+        fig_hist.add_vline(x=0.00, line_color="#94A3B8")
+        fig_hist.update_layout(height=340)
+        st.plotly_chart(fig_hist, use_container_width=True)
         
-    st.markdown("#### Quant & Linguistic Correlation Heatmap")
-    num_cols = ['nsi_exec', 'nsi_qa', 'divergence', 'exec_hedge_pct', 'qa_ratio', 'car_5d']
+    st.markdown("#### Cross-Feature Correlation Matrix")
+    num_cols = ['nsi_exec', 'nsi_qa', 'divergence', 'exec_hedge_pct', 'qa_hedge_pct', 'hedge_divergence', 'car_5d', 'sector_car_5d']
     corr_matrix = df[num_cols].corr()
     fig_corr = px.imshow(corr_matrix, text_auto=".2f", color_continuous_scale="RdBu_r", zmin=-1, zmax=1, template="plotly_dark")
     st.plotly_chart(fig_corr, use_container_width=True)
@@ -187,29 +195,29 @@ with tab2:
 # ==========================================
 with tab3:
     st.subheader("📈 Econometric Multi-Variable OLS Regression (White HC1 Robust)")
-    st.markdown(r'''**Empirical Model:** $\text{CAR}_{5D} = \alpha + \beta_1 \cdot \text{NSI}_{\text{QA}} + \beta_2 \cdot \text{Divergence} + \beta_3 \cdot \text{QA Ratio} + \beta_4 \cdot \text{Exec Hedging} + \epsilon$''')
+    st.markdown(r'''**Empirical Specification:** $\text{CAR}_{5D} = \alpha + \beta_1 \cdot \text{NSI}_{\text{QA}} + \beta_2 \cdot \text{Divergence} + \beta_3 \cdot \text{Hedge Divergence} + \beta_4 \cdot \text{QA Ratio} + \epsilon$''')
     
-    X_cols = ['nsi_qa', 'divergence', 'qa_ratio', 'exec_hedge_pct']
+    X_cols = ['nsi_qa', 'divergence', 'hedge_divergence', 'qa_ratio']
     X = sm.add_constant(df[X_cols])
-    y = df['car_5d']
+    y = df['sector_car_5d']
     ols_model = sm.OLS(y, X).fit(cov_type='HC1')
     
     reg_col1, reg_col2 = st.columns([1.2, 1])
     with reg_col1:
         fig_scatter = px.scatter(
-            df, x="divergence", y="car_5d", color="ticker",
-            hover_data=["date", "nsi_exec", "nsi_qa"],
-            labels={"divergence": "Tone Divergence (Exec - QA)", "car_5d": "5-Day CAR vs S&P 500"},
-            title="Tone Divergence vs 5-Day Alpha Drift",
+            df, x="divergence", y="sector_car_5d", color="sector",
+            hover_data=["ticker", "date", "nsi_exec", "nsi_qa"],
+            labels={"divergence": "Tone Divergence (Exec - QA)", "sector_car_5d": "5-Day Sector Alpha"},
+            title="Tone Divergence vs Sector-Neutral Alpha",
             template="plotly_dark", trendline="ols", trendline_color_override="#EF4444"
         )
         fig_scatter.update_layout(height=380)
         st.plotly_chart(fig_scatter, use_container_width=True)
         
     with reg_col2:
-        st.write("**Regression Diagnostics (White HC1 Robust):**")
+        st.write("**Regression Diagnostics (White HC1 Robust Standard Errors):**")
         summary_df = pd.DataFrame({
-            "Variable": ["Constant", "NSI_QA (Analyst Tone)", "Divergence (Overconfidence)", "Q&A Ratio", "Exec Hedging (%)"],
+            "Variable": ["Constant", "NSI_QA (Analyst Tone)", "Divergence (Overconfidence)", "Hedge Divergence (%)", "Q&A Ratio"],
             "Coefficient": [ols_model.params.iloc[i] for i in range(5)],
             "Robust t-stat": [ols_model.tvalues.iloc[i] for i in range(5)],
             "p-value": [ols_model.pvalues.iloc[i] for i in range(5)]
@@ -219,68 +227,79 @@ with tab3:
         st.metric("R-Squared", f"{ols_model.rsquared:.2%}")
 
 # ==========================================
-# TAB 4: Out-of-Sample Backtest & Equity Curve
+# TAB 4: Net-of-Fee Backtest & 5-Fold CV
 # ==========================================
 with tab4:
-    st.subheader("🏆 Temporal Out-of-Sample Backtest & Baseline Comparison")
+    st.subheader("🏆 Institutional Walk-Forward Backtest & 5-Fold TimeSeriesSplit")
     st.markdown('''
-    **Institutional Benchmark Protocol:**
-    Comparing Machine Learning signal performance against **3 standard industry baselines** on strictly unseen forward test data (Zero Lookahead Bias).
+    **Rigorous Institutional Backtesting:**
+    1. **5-Fold Walk-Forward Cross-Validation**: Measures out-of-sample precision stability across distinct market regimes.
+    2. **Net-of-Fee Returns**: Incorporates **10 bps (0.10%) institutional transaction costs / slippage** per trade.
     ''')
     
+    feat_cols = ['nsi_exec', 'nsi_qa', 'divergence', 'qa_ratio', 'exec_hedge_pct', 'hedge_divergence', 'is_overconfident']
+    X_all = df[feat_cols]
+    y_all = df['target_outperform']
+    
+    # 5-Fold TimeSeriesSplit CV
+    tscv = TimeSeriesSplit(n_splits=5)
+    cv_clf = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42, class_weight='balanced')
+    cv_scores = cross_val_score(cv_clf, X_all, y_all, cv=tscv, scoring='precision')
+    
+    cv_c1, cv_c2, cv_c3 = st.columns(3)
+    cv_c1.metric("5-Fold CV Mean Precision", f"{cv_scores.mean():.1%}")
+    cv_c2.metric("CV Stability (Std Dev)", f"±{cv_scores.std():.1%}")
+    cv_c3.metric("Transaction Fee per Trade", "10 bps (0.10%)")
+    
+    # Temporal Split for Detailed Evaluation
     split_idx = int(len(df) * 0.70)
     train_df = df.iloc[:split_idx]
     test_df = df.iloc[split_idx:].copy().reset_index(drop=True)
     
-    feat_cols = ['nsi_exec', 'nsi_qa', 'divergence', 'qa_ratio', 'exec_hedge_pct', 'is_overconfident']
     X_train = train_df[feat_cols]
     y_train = train_df['target_outperform']
     X_test = test_df[feat_cols]
     y_test = test_df['target_outperform']
     
-    # ML Model
     clf = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42, class_weight='balanced')
     clf.fit(X_train, y_train)
     y_pred_rf = clf.predict(X_test)
     
-    # Baseline 1: Naive Sentiment (Buy if NSI_QA > 0)
+    # Baselines
     y_pred_naive = (test_df['nsi_qa'] > 0).astype(int)
-    # Baseline 2: Buy and Hold (Always predict Outperform 1)
     y_pred_bah = np.ones(len(y_test), dtype=int)
-    # Baseline 3: Random Coin Flip (50/50)
     np.random.seed(42)
     y_pred_rand = np.random.choice([0, 1], size=len(y_test))
     
-    # Performance Table
+    # Benchmarks Table
     benchmarks_df = pd.DataFrame({
-        "Strategy / Model": ["Random Coin-Flip", "Buy & Hold Benchmark", "Naive Sentiment Rule (NSI > 0)", "Quant ML Random Forest"],
+        "Strategy / Model": ["Random Coin-Flip (50%)", "Buy & Hold Benchmark", "Naive Sentiment Rule (NSI > 0)", "Quant ML Random Forest"],
         "Precision (Win Rate)": [precision_score(y_test, y_pred_rand, zero_division=0), precision_score(y_test, y_pred_bah, zero_division=0), precision_score(y_test, y_pred_naive, zero_division=0), precision_score(y_test, y_pred_rf, zero_division=0)],
         "Recall": [recall_score(y_test, y_pred_rand, zero_division=0), recall_score(y_test, y_pred_bah, zero_division=0), recall_score(y_test, y_pred_naive, zero_division=0), recall_score(y_test, y_pred_rf, zero_division=0)],
         "F1-Score": [f1_score(y_test, y_pred_rand, zero_division=0), f1_score(y_test, y_pred_bah, zero_division=0), f1_score(y_test, y_pred_naive, zero_division=0), f1_score(y_test, y_pred_rf, zero_division=0)]
     })
-    
     st.dataframe(benchmarks_df.style.format({"Precision (Win Rate)": "{:.1%}", "Recall": "{:.1%}", "F1-Score": "{:.3f}"}), hide_index=True)
     
-    # Cumulative Equity Curve Simulation ($10,000 starting capital)
-    st.markdown("#### 📈 Cumulative Portfolio Equity Curve ($10,000 Backtest on Unseen Test Calls)")
+    # Net-of-Fee Equity Curve Simulation ($10,000 Capital)
+    st.markdown("#### 📈 Cumulative Net-of-Fee Equity Curve ($10,000 Initial Capital, 10 bps Friction)")
     initial_capital = 10000.0
+    FEE = 0.0010  # 10 bps
     
-    # Returns per strategy
-    ml_returns = np.where(y_pred_rf == 1, test_df['car_5d'], 0.0)
-    naive_returns = np.where(y_pred_naive == 1, test_df['car_5d'], 0.0)
+    ml_net_returns = np.where(y_pred_rf == 1, test_df['car_5d'] - FEE, 0.0)
+    naive_net_returns = np.where(y_pred_naive == 1, test_df['car_5d'] - FEE, 0.0)
     bah_returns = test_df['car_5d'].values
     
-    ml_equity = initial_capital * np.cumprod(1 + ml_returns)
-    naive_equity = initial_capital * np.cumprod(1 + naive_returns)
+    ml_equity = initial_capital * np.cumprod(1 + ml_net_returns)
+    naive_equity = initial_capital * np.cumprod(1 + naive_net_returns)
     bah_equity = initial_capital * np.cumprod(1 + bah_returns)
     
     trades = list(range(1, len(test_df) + 1))
     fig_equity = go.Figure()
-    fig_equity.add_trace(go.Scatter(x=trades, y=ml_equity, mode='lines', name='Quant ML Alpha Strategy', line=dict(color='#38BDF8', width=3)))
-    fig_equity.add_trace(go.Scatter(x=trades, y=naive_equity, mode='lines', name='Naive Sentiment (NSI > 0)', line=dict(color='#F59E0B', width=2, dash='dot')))
-    fig_equity.add_trace(go.Scatter(x=trades, y=bah_equity, mode='lines', name='Buy & Hold Benchmark', line=dict(color='#94A3B8', width=2, dash='dash')))
+    fig_equity.add_trace(go.Scatter(x=trades, y=ml_equity, mode='lines', name='Quant ML Alpha (Net of 10bps Fees)', line=dict(color='#38BDF8', width=3)))
+    fig_equity.add_trace(go.Scatter(x=trades, y=naive_equity, mode='lines', name='Naive Sentiment (Net of Fees)', line=dict(color='#F59E0B', width=2, dash='dot')))
+    fig_equity.add_trace(go.Scatter(x=trades, y=bah_equity, mode='lines', name='Buy & Hold S&P Benchmark', line=dict(color='#94A3B8', width=2, dash='dash')))
     fig_equity.add_hline(y=initial_capital, line_color="gray", line_dash="dash")
-    fig_equity.update_layout(title="Out-of-Sample Portfolio Growth Trajectory ($10k Initial Capital)", xaxis_title="Chronological Trade Sequence", yaxis_title="Portfolio Value ($)", template="plotly_dark", height=380)
+    fig_equity.update_layout(title="Out-of-Sample Portfolio Growth Trajectory ($10k Capital)", xaxis_title="Trade Sequence", yaxis_title="Portfolio Equity ($)", template="plotly_dark", height=380)
     st.plotly_chart(fig_equity, use_container_width=True)
 
 # ==========================================
@@ -288,7 +307,7 @@ with tab4:
 # ==========================================
 with tab5:
     st.subheader("🧪 Live FinBERT Inference Sandbox")
-    sample_text = st.text_area("Enter Financial Text / Earnings Call Snippet:", value="We delivered record revenue and expanded operating margins, although supply chain headwinds remain challenging in the international division.", height=110)
+    sample_text = st.text_area("Enter Financial Text / Earnings Snippet:", value="We delivered record revenue and expanded operating margins, although supply chain headwinds remain challenging in the international division.", height=110)
     if st.button("Run Live FinBERT"):
         with st.spinner("Tokenizing & inferring via ProsusAI/finbert..."):
             from transformers import AutoTokenizer, AutoModelForSequenceClassification
