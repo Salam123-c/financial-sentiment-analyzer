@@ -1,0 +1,100 @@
+{
+  "model_name": "CalibratedRandomForestAlphaClassifier",
+  "model_version": "2.1.0",
+  "sr11_7_validation_status": "APPROVED",
+  "feature_order": [
+    "nsi_exec",
+    "nsi_qa",
+    "divergence",
+    "qa_ratio",
+    "exec_hedge_pct",
+    "hedge_divergence",
+    "is_overconfident"
+  ],
+  "feature_dtypes": {
+    "nsi_exec": "float64",
+    "nsi_qa": "float64",
+    "divergence": "float64",
+    "qa_ratio": "float64",
+    "exec_hedge_pct": "float64",
+    "hedge_divergence": "float64",
+    "is_overconfident": "int64"
+  },
+  "feature_ranges": {
+    "nsi_exec": {
+      "min": -0.2569,
+      "max": 0.3778,
+      "mean": 0.3059123417721519
+    },
+    "nsi_qa": {
+      "min": -0.2079,
+      "max": 0.3753,
+      "mean": 0.25213892405063293
+    },
+    "divergence": {
+      "min": -0.3337,
+      "max": 0.4979,
+      "mean": 0.053773417721518973
+    },
+    "qa_ratio": {
+      "min": 0.13,
+      "max": 13.67,
+      "mean": 1.8812974683544303
+    },
+    "exec_hedge_pct": {
+      "min": 0.0,
+      "max": 0.71,
+      "mean": 0.16243670886075948
+    },
+    "hedge_divergence": {
+      "min": -0.64,
+      "max": 0.42,
+      "mean": -0.1500949367088608
+    },
+    "is_overconfident": {
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.41455696202531644
+    }
+  },
+  "optimal_decision_threshold": 0.36,
+  "transaction_cost_bps_per_side": 10,
+  "purged_cv_metrics": {
+    "mean_precision": 0.3409,
+    "std_precision": 0.2207,
+    "mean_recall": 0.238,
+    "mean_f1": 0.2636,
+    "mean_brier_score": 0.2673
+  },
+  "benchmark_comparison": {
+    "monte_carlo_random_mean": 0.548,
+    "monte_carlo_95_ci": [
+      0.4255,
+      0.6744
+    ],
+    "all_events_long": 0.5474,
+    "naive_sentiment_rule": 0.5444,
+    "quant_rf_holdout_precision": 0.5366
+  },
+  "permutation_importances": {
+    "nsi_exec": -0.0221,
+    "nsi_qa": -0.0042,
+    "divergence": -0.0137,
+    "qa_ratio": -0.0021,
+    "exec_hedge_pct": 0.0032,
+    "hedge_divergence": -0.0042,
+    "is_overconfident": 0.0221
+  },
+  "frozen_reference_vector": {
+    "features": [
+      0.3592,
+      0.3699,
+      -0.0107,
+      1.19,
+      0.1,
+      -0.16,
+      0
+    ],
+    "expected_probability": 0.0815
+  }
+}
