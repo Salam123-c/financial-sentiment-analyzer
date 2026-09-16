@@ -97,8 +97,8 @@ with col5:
 
 st.markdown("---")
 
-# Scale Disambiguation Note (P2 Item 10)
-st.markdown('''
+# Scale Disambiguation Note
+st.markdown(r'''
 <div class="scale-note">
     📌 <b>Linguistic Metric Scales Disambiguation:</b><br>
     • <b>Lexicon NSI (±0.38 scale)</b>: Continuous hyperbolic polarity calibrated across high-throughput earnings transcripts.<br>
@@ -313,7 +313,7 @@ with tab4:
     initial_cap = 10000.0
     ml_curve = initial_cap * np.cumprod(1 + ml_port_rets)
     all_curve = initial_cap * np.cumprod(1 + all_events_rets)
-    naive_curve = initial_cap * np.cumprod(1 + naive_net_rets := naive_rets)
+    naive_curve = initial_cap * np.cumprod(1 + naive_rets)
     
     sharpe_ml = calc_sharpe(ml_port_rets)
     mdd_ml = calc_mdd(ml_curve)
